@@ -61,9 +61,9 @@ def get_dart_data(zone: str, start: str, end: str) -> pd.DataFrame:
 
 
 def save_data(zone: str, start: str, end: str, path: str) -> None:
-    """Fetch DART and load-forecast data for one zone and save the joined result to CSV."""
+    """Fetch DART data for one zone and save it to CSV."""
     dart = get_dart_data(zone, start, end)
-    dart.join(load_forecast).to_csv(path)
+    dart.to_csv(path)
 
 
 def collect_train_data() -> None:
