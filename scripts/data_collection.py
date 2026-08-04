@@ -17,8 +17,11 @@ ZONE = "DOM"  # PJM Dominion zone
 
 TRAIN_START = "2019-01-01"
 TRAIN_END = "2026-01-01"  # exclusive: covers 2019-01-01 through 2025-12-31
-WARMUP_END = "2020-01-01"  # exclusive: all of 2019 is warm-up-only training history
-HOLDOUT_START = "2026-01-01"  # final holdout, untouched until the end of the project
+TEST_START = "2026-01-01"
+TEST_END = "2026-08-01"  # final holdout, untouched until the end of the project
+
+TRAIN_DATA_PATH = INPUT_DATA_DIR / "dart_data_train.csv"
+TEST_DATA_PATH = INPUT_DATA_DIR / "dart_data_test.csv"
 
 
 def get_dart_data(zone: str, start: str, end: str) -> pd.DataFrame:
@@ -57,42 +60,22 @@ def get_dart_data(zone: str, start: str, end: str) -> pd.DataFrame:
     return out
 
 
-def get_load_forecast_data(
-    zone: str, start: str, end: str, da_close_hour_et: int = 12
-) -> pd.Series:
-    """Leak-free hourly load forecast for one PJM zone.
-
-    `pjm_load_forecast_hourly_historical` carries multiple forecast vintages
-    per hour (`publish_time_utc`), since PJM reissues the forecast every six
-    hours. For each target hour we keep only vintages published before that
-    operating day's DA market close (~noon ET, per SPEC.md — not verified)
-    and take the most recent of those, so the feature reflects only what was
-    actually knowable before DA close.
-    """
-    raw = client.get_dataset(
-        dataset="pjm_load_forecast_hourly_historical",
-        start=start, end=end,
-        columns=["interval_start_utc", "publish_time_utc", zone.lower()],
-    )
-    raw = raw.rename(columns={zone.lower(): "load_forecast"})
-
-    interval_et = raw["interval_start_utc"].dt.tz_convert("US/Eastern")
-    operating_day = interval_et.dt.normalize()
-    da_close = operating_day - pd.Timedelta(days=1) + pd.Timedelta(hours=da_close_hour_et)
-
-    raw = raw[raw["publish_time_utc"] <= da_close]
-    raw = raw.sort_values("publish_time_utc")
-    latest = raw.groupby("interval_start_utc").last()
-
-    return latest["load_forecast"]
-
-
 def save_data(zone: str, start: str, end: str, path: str) -> None:
     """Fetch DART and load-forecast data for one zone and save the joined result to CSV."""
     dart = get_dart_data(zone, start, end)
-    load_forecast = get_load_forecast_data(zone, start, end)
     dart.join(load_forecast).to_csv(path)
 
 
+def collect_train_data() -> None:
+    """Fetch/refresh the training window (`TRAIN_START`-`TRAIN_END`, i.e. 2019-2025) into `TRAIN_DATA_PATH`."""
+    save_data(ZONE, TRAIN_START, TRAIN_END, TRAIN_DATA_PATH)
+
+
+def collect_test_data() -> None:
+    """Fetch/refresh the holdout (`TEST_START` through `TEST_END`) into `TEST_DATA_PATH`."""
+    save_data(ZONE, TEST_START, TEST_END, TEST_DATA_PATH)
+
+
 if __name__ == "__main__":
-    save_data(ZONE, TRAIN_START, TRAIN_END, INPUT_DATA_DIR / "dart_data.csv")
+    collect_train_data()
+    collect_test_data()
