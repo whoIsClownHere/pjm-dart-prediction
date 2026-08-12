@@ -10,15 +10,16 @@ load_dotenv()
 GRIDSTATUS_API_KEY = os.environ["GRIDSTATUS_API_KEY"]
 client = GridStatusClient(api_key=GRIDSTATUS_API_KEY)
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 INPUT_DATA_DIR = ROOT_DIR / "input_data"
 
 ZONE = "DOM"  # PJM Dominion zone
 
 TRAIN_START = "2019-01-01"
-TRAIN_END = "2026-01-01"  # exclusive: covers 2019-01-01 through 2025-12-31
 TEST_START = "2026-01-01"
-TEST_END = "2026-08-01"  # final holdout, untouched until the end of the project
+TEST_END = "2026-08-01"
+TRAIN_END      = TEST_START
+HOLDOUT_START  = TEST_START
 
 TRAIN_DATA_PATH = INPUT_DATA_DIR / "dart_data_train.csv"
 TEST_DATA_PATH = INPUT_DATA_DIR / "dart_data_test.csv"

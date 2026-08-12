@@ -8,4 +8,4 @@ __pycache__/
 .DS_Store
 SPEC.md
 input_data/
-results/
+results/.DS_Store
