@@ -1,194 +1,371 @@
-# PJM DART Spread Forecasting
+# DART Spike Trading — PJM DOM
 
-A learning project on forecasting the **DART spread** (Day-Ahead minus Real-Time LMP) for a PJM zone, built on the [GridStatus](https://www.gridstatus.io/) API.
+Репликация методологии Hubert, Lolas & Sircar (arXiv 2601.05085, «Trading Electrons»)
+на данных PJM, зона Dominion (DOM). Цель — не предсказать значение DART, а
+**классифицировать хвосты** его распределения и торговать их виртуальными INC/DEC.
 
-This is a from-scratch dive into energy market data as someone new to the domain but coming from a data science background. The goal is a small, honest, reproducible pipeline — not a claim of trading alpha.
-
-## What is DART, and why does it matter?
-
-PJM runs two markets for the same hour of power: a **day-ahead (DA)** market that clears the afternoon before, and a **real-time (RT)** market that settles as power actually flows. The difference between them, `DART = DA price - RT price`, is what virtual traders bid on:
-
-- An **INC** (incremental offer) is paid the DA price and buys back the equivalent volume at the RT price — it profits when `DART > 0`.
-- A **DEC** (decrement bid) does the reverse — it profits when `DART < 0`.
-
-Predicting DART is therefore directly predicting the profitability of these virtual trades. This project only builds the forecast; it does not place or simulate trades.
-
-Prediction must happen before PJM's day-ahead market closes for the target operating day (referenced in discussion as roughly noon Eastern Prevailing Time — not independently verified). At that point no real-time price for the target day exists yet, which constrains what features are legitimate to use. Once the spread is known, its sign determines the trade direction — trading/execution logic itself is a later phase, out of scope here.
-
-## Why the Dominion (DOM) zone
-
-Originally framed around PJM Western Hub. After discussing why Western Hub (highest liquidity, most heavily virtual-traded, and a load-weighted aggregate across multiple pricing nodes rather than a single physical location) might actually be the hardest place to find a first signal, the project moved to the **PJM Dominion zone (DOM)**. Northern Virginia's data-center load growth has been driving real, well-documented transmission congestion inside Dominion, giving the DART spread here an actual physical story to point to, rather than being an arbitrary pick.
-
-## Status
-
-This project is in progress and will be updated as it grows. Current state:
-
-- [x] Data collection: pull hourly day-ahead and real-time LMPs for the Dominion zone and compute DART (`scripts/data_collection.py`)
-- [x] Leak-free feature pull (PJM's `pjm_load_forecast_hourly_historical` dataset, so features only use information that would have actually been available before the day-ahead market closed) (`scripts/data_collection.py`)
-- [ ] Calendar/seasonal features
-- [ ] Baselines: persistence and seasonal-naive
-- [ ] Two models trained on load-forecast + calendar features: a linear model (Ridge/Lasso) and a gradient-boosted model (LightGBM)
-- [ ] Walk-forward backtest (expanding time window — never a random train/test split on time series data) scoring MAE/RMSE for both models against both baselines
-- [ ] Results and honest write-up of what worked and what didn't (repo README + a short blog-style post)
-
-## A deliberate constraint: no look-ahead
-
-The hardest part of this problem isn't the model, it's the data discipline. At the moment an INC/DEC decision would actually be made, no real-time price for that day exists yet. Every feature used here has to be something that was genuinely knowable before the day-ahead market closed — which is why load *forecasts* are used instead of load *actuals*, pulled from GridStatus's historical-vintage forecast dataset rather than the latest revision.
-
-## Setup
-
-```bash
-python -m venv env
-source env/bin/activate
-pip install -r requirements.txt
-```
-
-Add your GridStatus API key to a `.env` file in the project root:
-
-```
-GRIDSTATUS_API_KEY=your_key_here
-```
-
-Then run:
-
-```bash
-python scripts/data_collection.py
-```
+Одна зона, без межзональной панели. Это осознанное сокращение: мультизональная часть
+статьи — её главный вклад, но она нужна только там, где зоны слабо скоррелированы
+(NYISO). Базовая работа, на которой статья построена (Galarneau-Vincent, Gauthier,
+Godin, 2023), использует одну зону и `d = 9` признаков против `d = 50` в
+мультизональной версии — то есть однозональный вариант это опубликованный сетап,
+а не упрощение ради экономии.
 
 ---
 
-## Spec
+## 0. Чем это отличается от предыдущей версии проекта
 
-Compiled from the grilling session that shaped this project. Anything not explicitly discussed is left out rather than guessed at.
-
-### Data Sources
-
-All via the GridStatus API (`gridstatusio` Python client):
-
-- `pjm_lmp_day_ahead_hourly` — PJM day-ahead LMP, filtered to `location="DOM"`
-- `pjm_lmp_real_time_hourly` — PJM real-time LMP, filtered to `location="DOM"` (already hourly, no resampling needed)
-- Columns discussed/used: `interval_start_utc`, `location`, `lmp`, `energy`, `congestion`, `loss`
-- `pjm_load_forecast_hourly_historical` — the leak-free load forecast feature source: it's grouped by the date/time the forecast was actually made (`publish_time_utc`), so it can be pulled as it existed before DA close rather than using revised/actual values. Implemented in `scripts/data_collection.py` (`get_load_forecast_data`): filters to vintages published before each operating day's DA close and keeps the most recent one per hour. The zone value is a column name in this dataset (`dom`), not a `filter_column`/`filter_value` pair like the LMP datasets.
-- The `"DOM"` filter value was confirmed working by the user after running the script locally.
-- No weather forecast dataset was found in GridStatus's catalog (only load forecasts). Using weather would require an external source — not committed, listed as a v2 idea only.
-- Earlier draft code used ERCOT (`ercot_spp_day_ahead_hourly`, `ercot_spp_real_time_15_min`, node `HB_NORTH`) with 15-minute RT data resampled to hourly. This was scratch/leftover code, explicitly replaced with the PJM version above — it is not part of the current plan.
-
-### Key Decisions
-
-- **Purpose**: an open-source personal/portfolio project — to build energy domain expertise as a beginner (strong data science background, new to energy) and to demonstrate genuine interest and GridStatus API use for an internship application. Explicitly *not* a claimed live trading system, and the internship motivation is explicitly not to be stated in the project's public materials (README etc.).
-- **Feasibility stance**: the user confirmed this is currently exploratory — it is not yet known whether a real predictive edge exists at this zone. The project should behave like a feasibility test, not a project that assumes it already has a working signal.
-- **ISO / zone**: PJM only for v1, Dominion (DOM) zone.
-- **Leakage protection**: features must only use information that would have genuinely been knowable before DA market close. This is why the load-forecast (historical-vintage) dataset is used instead of load actuals.
-- **Baselines to beat**: persistence (today's same-hour DART repeated as tomorrow's prediction) and seasonal-naive (historical average for the same hour-of-week).
-- **Observation period**: training + walk-forward backtest window is `2019-01-01` to `2025-12-31`. Start date chosen (not data-availability-constrained — GridStatus dataset metadata confirms DA LMP, RT LMP, and `pjm_load_forecast_hourly_historical` all have DOM data back to `2011-01-01`) to avoid mixing in a pre-2018 PJM market era that predates the Dominion data-center congestion story, while still giving ~2 years of pre-spike baseline before the 2019-2025 transition period. Within this window, `2022` — whose DOM congestion is dominated by Winter Storm Elliott (Dec 23–25, 2022; `mean_abs_dart` for that December alone was ~93.6 $/MWh vs. ~8–50 for every other month that year) — is deliberately **included** and backtested like any other year rather than excluded, to avoid cherry-picking the dataset toward the hypothesis.
-- **Final holdout**: `2026-01-01` through present is reserved untouched — not used in EDA, backtesting, or tuning until the very end of the project.
-- **Warm-up**: the walk-forward backtest scores no predictions before `2020-01-01`. All of `2019` is used purely as training history, so the model has seen a full seasonal cycle (every hour-of-day/day-of-week/month combination at least once) before any prediction is judged.
-- **Evaluation method**: walk-forward / expanding-window backtest. Explicitly never a random train/test split, since this is time series data.
-- **Success metric**: MAE / RMSE against both baselines, evaluated inside the walk-forward backtest. A negative result (model doesn't beat baselines) is a valid, reportable outcome — not a failure condition for the project.
-- **v1 feature set**: `pjm_load_forecast_hourly_historical` plus calendar/seasonal features (hour-of-day, day-of-week, month). Weather features explicitly excluded from v1.
-- **v1 model**: both a linear model (e.g. Ridge/Lasso) and a gradient-boosted model (e.g. LightGBM) are fit and compared against each other and against the two baselines in the same backtest — the linear/GBM comparison is itself a reported result, not a pre-decided choice.
-- **v1 scope boundary**: single PJM zone, no congestion/energy/loss decomposition of LMP, no multi-ISO comparison. These were discussed as possible directions but explicitly deferred to a stated v2 roadmap.
-- **Deliverable**: a GitHub repository with a README documenting methodology, results, and honest limitations (including a negative result, if that's what the backtest shows), plus a short blog-style write-up summarizing findings.
-- **Repo rename**: repo will be renamed from `dart-spread-western-hub-pjm` to match the Dominion-zone scope (proposed: `dart-spread-pjm-dom`) — rename itself is a separate action, not yet executed.
-
-### Open Questions
-
-- **Does an edge actually exist?** Not yet tested. This is the central open question the v1 pipeline is meant to answer.
-- **Weather features**: whether/how to bring in an external weather forecast source. Named as a gap and a v2 idea, not decided either way.
-- **Multi-zone / multi-ISO expansion**: raised as a possible stronger narrative (matching GridStatus's own multi-ISO value proposition) but not committed to for v1.
-- **LMP decomposition**: whether to model energy/congestion/loss components separately instead of the aggregate DART spread. Raised, not resolved.
-- **Exact DA market close time**: referenced in discussion as approximately noon Eastern Prevailing Time, but not independently verified.
-
-### Glossary
-
-- **DART**: Day-Ahead minus Real-Time price spread (`DA − RT`), computed hourly for a given PJM zone.
-- **DA (Day-Ahead market/price)**: PJM's market that clears the afternoon before the operating day.
-- **RT (Real-Time market/price)**: PJM's market that settles as power actually flows.
-- **INC (incremental offer)**: a virtual supply offer paid the DA price, bought back at the RT price. Profits when `DART > 0`.
-- **DEC (decrement bid)**: a virtual demand bid; the reverse of an INC. Profits when `DART < 0`.
-- **LMP**: the price field used from PJM's day-ahead and real-time datasets to compute DART (`da_lmp`, `rt_lmp` in the code).
-- **Hub**: a load-weighted aggregate price across multiple pricing nodes — not a single physical location (discussed re: Western Hub).
-- **Zone**: a PJM location grouping distinct from a hub or an individual node — e.g. Dominion (`DOM`), the zone used in this project.
-- **Look-ahead bias / leakage**: using data in a feature or backtest that would not actually have been available at the point a real prediction had to be made — the reason load *forecasts* (historical vintage) are used instead of load actuals.
-- **Walk-forward / expanding-window backtest**: a time-series evaluation method where the training window expands forward in time, as opposed to a random train/test split.
-- **Persistence baseline**: predicting tomorrow's DART as equal to today's same-hour DART.
-- **Seasonal-naive baseline**: predicting DART as the historical average for that same hour-of-week.
-
----
-
-## Model
-
-Describes how the v1 model works: input → steps → output. This is a design document, not implementation — no code, no library names beyond what's already fixed above.
-
-### Prediction Unit
-
-One row = one **(zone, hour)** instance. A single model is trained across all historical hours for the DOM zone, with hour-of-day, day-of-week, and month as features — it is not 24 separate per-hour models, and not a single model that outputs a whole day's 24 values at once.
-
-At inference time, predicting the next operating day means running this same per-hour model 24 times (once per target hour), not one call that returns a vector.
-
-### Input
-
-**Training row** (one per historical hour, only for hours where the actual DART is already known):
-
-| Field | Source | Notes |
+| | Было | Стало |
 |---|---|---|
-| `dart` (target) | `get_dart_data` (`da_lmp − rt_lmp`) | The value being predicted. Used raw — no clipping/winsorizing of the target itself. (The *historical* `dart`/`rt_lmp` used to build lag/rolling features below excludes hours past an extreme-value threshold; see "Outlier masking" below.) |
-| `load_forecast` | `get_load_forecast_data` | Leak-free: latest forecast vintage published before that hour's operating day's DA close. |
-| `hour_sin`, `hour_cos` | derived from `interval_start_utc`, **US/Eastern** | Cyclical encoding of hour-of-day (24h period), not one-hot — supersedes the earlier one-hot plan. |
-| `dow_sin`, `dow_cos` | derived from `interval_start_utc`, US/Eastern | Cyclical encoding of day-of-week (7-day period). |
-| `is_weekend` | derived from day-of-week, US/Eastern | 0/1 flag, kept alongside the cyclical dow encoding rather than relying on it alone. |
-| `month_1`...`month_12` | derived from `interval_start_utc`, US/Eastern | One-hot, 12 fixed categories (unlike hour/dow, kept one-hot). |
-| `dart_lag_1/2/3/24`, `rt_lmp_lag_1/24` | trailing `dart`/`rt_lmp` history | **Cutoff-anchored** — see "Leakage protection" below. |
-| `dart_lag_48/168`, `rt_lmp_lag_48/168` | trailing `dart`/`rt_lmp` history | **Target-hour-anchored** ("this exact hour, N days ago") — safe unlike the shorter lags because 48h/168h both clear the 35h worst-case lookback for every target hour, so anchoring to the literal target hour (rather than the cutoff) carries more signal without leaking. |
-| `dart_mean_24`, `dart_std_24`, `dart_mean_168` | rolling `dart` history | Same cutoff-anchoring as the lag features. |
+| Задача | регрессия на `dart` | две бинарные классификации: `dart ≥ γ_pos`, `dart ≤ −γ_neg` |
+| Экстремумы | удалялись как выбросы | **являются целевой меткой** |
+| Модель | Ridge / LightGBM | логистическая регрессия |
+| Метрика | MAE / RMSE | precision + кумулятивный P&L + Sharpe |
+| Сплит | train / test | train / **validation** / test |
+| Признаки | 31, в основном лаги самого DART | ~13, ядро — прогноз нагрузки и его ошибка |
 
-All calendar fields (`hour_sin/cos`, `dow_sin/cos`, `is_weekend`, `month_*`) are derived from `interval_start_utc` converted to **US/Eastern**, not raw UTC — this is PJM's own operating clock (DA close, operating-day boundaries), and deriving hour-of-day from UTC would misalign it with what actually drives demand/congestion patterns.
+Две причины, по которым предыдущая версия не могла заработать:
 
-Explicitly **excluded**: `da_lmp`, `da_energy`, `da_congestion`, `da_loss` (and anything derived from them, e.g. a `da_congestion_share`) for the target hour. `dart = da_lmp − rt_lmp`, so the target day's own DA decomposition is half the label and doesn't exist yet at prediction time — including it would be direct target leakage, not a subtle timing issue.
+**1. Фильтр выбросов удалял метку.** В экспорте `features.csv` таргет был обрезан
+диапазоном ±77 $/МВт·ч, тогда как нефильтрованная история в колонке `dart_lag_168`
+доходит до −3977 и +531. Квантили на одном и том же периоде:
 
-**Inference row** (one per hour of the target operating day, built before DA close):
+| квантиль | таргет (после фильтра) | реальное распределение |
+|---|---|---|
+| Q0.01 | −32.79 | −129.44 |
+| Q0.05 | −13.77 | −27.77 |
+| Q0.50 | 2.27 | 2.13 |
+| Q0.95 | 19.57 | 23.68 |
+| Q0.99 | 35.82 | 63.69 |
+| Q1.00 | 77.20 | 530.76 |
 
-Same feature columns as training — no `dart`, since that's what's being predicted (the `dart_lag_*`/`dart_mean_*`/`dart_std_*` features use only already-realized history, so they're populated at inference time too). `load_forecast` is the vintage available as of the actual moment of prediction, not a future-revised value — this is what makes that feature leak-free at inference time by construction, not just in the backtest.
+Середина не пострадала — испарился левый хвост. Для NYISO статья берёт
+`γ_neg = 30 $/МВт·ч`; в отфильтрованных данных событий такого масштаба почти не
+остаётся, то есть класс, который надо предсказывать, вычищен из выборки.
 
-#### Leakage protection: why lags are cutoff-anchored, not target-hour-anchored
+**2. P&L концентрируется в считанных часах.** У авторов ~85% суммарной прибыли
+приходится на 2025 год, а внутри него огромная доля — на один день волны жары
+24 июня 2025. Модель, обученная на данных без таких дней, оптимизируется под режим,
+в котором денег нет.
 
-A trader submits INC/DEC bids for all 24 hours of the next operating day in one batch, before a single fixed DA-close cutoff (~noon ET the day before). That means the real lookback window isn't a flat N hours before each target hour — it ranges from ~12 hours (target hour 00:00) to ~35 hours (target hour 23:00), depending on which hour of the day is being predicted. A naive "N hours before this row's own timestamp" lag (e.g. `dart_lag_1` = 1 hour before target) is therefore leaky for nearly every hour of the day; a naive same-hour-yesterday lag (`dart_lag_24`) is leaky for roughly the afternoon/evening half of the day.
+Корреляция признаков с таргетом после удаления хвостов действительно растёт — но это
+корреляция с шумом. Экономически значимая величина не `E[dart | X]`, а
+`P(dart ≤ −γ | X)`.
 
-The fix used for the short lags (1/2/3/24h) and the rolling stats: anchor to the fixed daily cutoff instead of the row's own timestamp. Concretely, `ref_hour` = the latest hour whose DART/RT LMP is settled by DA close (assumed to be immediately at hour-end, since — unlike `load_forecast` — the LMP datasets carry no publish-time vintages to check against). `dart_lag_N` (N=1,2,3,24) = the DART value `N-1` hours before `ref_hour`. All 24 rows of a given target operating day share the *same* `ref_hour` and therefore the same lag/rolling values — only the calendar features and the hour-specific `load_forecast` vintage vary within a day.
+---
 
-The 48h/168h lags don't need this: a lookback of 48h or 168h clears the worst-case 35h requirement for *every* target hour of the day, so they're anchored to the literal target hour instead (`dart_lag_168` = the DART value exactly 168 hours before that row's own timestamp) — this varies per hour rather than being flat across the day, and captures the specific hour's weekly/48h pattern instead of a whole-day average. Implemented in `scripts/features.py`.
+## 1. Рынок и тайминг
 
-#### Outlier masking: extreme-value threshold, not specific event dates
+- Окно подачи заявок в PJM Day-Ahead Energy Market закрывается в **11:00 EPT** дня,
+  предшествующего операционному; результаты публикуются к 13:30 EPT.
+- Часы поставки 00:00–23:00 следующих суток → **горизонт прогноза 13–37 часов**
+  (у статьи: NYISO 19–42, ISO–NE 13.5–36.5, ERCOT 14–37).
+- Инструменты: INC (виртуальное предложение, платит `+DART`), DEC (виртуальный спрос,
+  платит `−DART`). UTC в PJM тоже есть, но в v1 не трогаем.
 
-Some hours see PJM emergency conditions (load-shed, RT price caps) that DA prices — set the day before — have no way to see coming, producing `dart` swings an order of magnitude beyond the rest of the series: -3977 and -3961 on 2022-12-23/24 (Winter Storm Elliott), but also -2785 on 2022-06-13 and -1533 on 2025-06-24 (see `analysis/eda.ipynb`, "Most extreme DART hours" and the feature-dataset section below it). Left untreated, each such hour dominates the `dart_lag_*`/`rt_lmp_lag_*`/`dart_mean_*`/`dart_std_*` features of every row whose lookback window happens to touch it (up to 168h later) — and hardcoding one event's dates doesn't generalize to the others, or to whatever the next one turns out to be.
+**Правило отсечки.** Любой признак для часа поставки `H` дня `D` строится только из
+данных, опубликованных строго до 11:00 EPT дня `D−1`. Одна функция, один источник
+истины:
 
-Decision: `scripts/features.py`'s `build_features` masks `dart` and `rt_lmp` to NaN for any hour where `|dart| > 1000` (≈18x the series' overall std of ~57) before computing any lag or rolling feature from them; rows whose features end up NaN as a result are dropped by the same `dropna()` used for missing `load_forecast`/warm-up rows below. This only affects *inputs* — the raw `dart` target value for these hours is untouched, so the model is still trained and evaluated against what the spread actually did.
+```python
+def cutoff(delivery_ts_utc):
+    et = delivery_ts_utc.tz_convert("America/New_York")
+    return (et.normalize() - pd.Timedelta(days=1)).replace(hour=11).tz_convert("UTC")
+```
 
-#### Missing data
+---
 
-289 hours of `load_forecast` are missing across 2019-2025 — not scattered randomly, but in ~13 near-full-day blackout windows. 8 of those align exactly with the US DST transition Sunday, one per year every year 2019-2024 (spring-forward), suggesting a systematic gap in PJM/GridStatus's forecast-vintage publishing around the clock change (not confirmed against raw pre-join data). The remaining ~5 windows don't correlate with DST and look like genuine source outages. Decision: **drop** these rows rather than impute — `scripts/features.py`'s `build_features` drops any row with a missing feature value (this also naturally drops the first ~8 days of 2019, before enough history exists for the 168-hour lag/rolling features; harmless, since all of 2019 just becomes part of the training window under the train/test split below).
+## 2. Данные
 
-### Steps
+### Есть
 
-1. **Assemble** — join `dart` (training only) and `load_forecast` on `interval_start_utc` for the zone.
-2. **Derive features** — calendar features (cyclical hour/day-of-week, one-hot month, is_weekend) plus cutoff-anchored `dart`/`rt_lmp` lag and rolling features, all in US/Eastern; see "Input" above. Implemented in `scripts/features.py`.
-3. **Split** — single train/test split, not walk-forward: every model trains once on all of `2019-01-01`–`2025-12-31` (see "Key Decisions" above), then is scored once against the entire `2026-01-01`-onward holdout. Never a random split, and never retrained within the holdout period — a one-shot final evaluation, not a daily-retrain simulation of live trading.
-4. **Fit** — two independent candidate models trained on the same feature set and target: a linear model (Ridge/Lasso) and a gradient-boosted model (LightGBM). Same feature representation for both; the one exception is that continuous features are standardized before Ridge/Lasso only (fit once on the training window alone, 2019-2025, then applied unchanged to every holdout prediction), since GBM tree splits are invariant to monotonic scaling anyway — not a difference in feature representation, just numerical preprocessing.
-5. **Predict** — each fitted model outputs one DART value per (zone, hour) row across the entire 2026 holdout.
-6. **Score** — compute error for both candidate models and both baselines (persistence, seasonal-naive) over the whole holdout, against the now-known actual `dart`.
+| Источник | Назначение |
+|---|---|
+| `pjm_lmp_day_ahead_hourly`, `location="DOM"` | `da_lmp` + компоненты |
+| `pjm_lmp_real_time_hourly`, `location="DOM"` | `rt_lmp` |
 
-### Output
+### Не хватает
 
-Per (zone, hour): a **point estimate of DART** (continuous, $/MWh) — one number from the linear model, one from the GBM model, alongside the two baseline values, for the same hour. No trade direction (INC/DEC), no confidence interval, no PnL — those are explicitly out of scope for this model per the Model Goal above. Sign and magnitude of the raw prediction are left for a later phase to interpret.
+| # | Данные | Зачем | Где |
+|---|---|---|---|
+| 1 | Прогноз нагрузки DOM, все vintage'и | единственный экзогенный драйвер | `pjm_load_forecast_hourly_historical` — содержит все опубликованные вintage'и, публикуется примерно раз в 6 часов |
+| 2 | Прогноз нагрузки PJM RTO | системная компонента | тот же датасет, area = PJM RTO |
+| 3 | Фактическая почасовая нагрузка | нужна для ошибки прогноза | PJM `hrl_load_metered` / `get_load_metered_hourly` |
+| 4 | Компоненты DA LMP (`congestion`, `loss`) | драйвер DOM — локальный congestion | колонки уже есть в датасете DA LMP |
+| 5 | Праздники NERC | отдельный дамми у статьи | `pandas.tseries.holiday` |
 
-Aggregated over the 2026 holdout, the output is a table of MAE/RMSE per model (linear, GBM, persistence, seasonal-naive) — the artifact that answers whether either candidate model beats both baselines.
+---
 
-### Not Yet Decided
+## 3. Схема датасета
 
-- **RT LMP settlement lag assumption** — `scripts/features.py` assumes an hour's DART/RT LMP is knowable immediately at hour-end for the purposes of the cutoff-anchored lag features, since the LMP datasets carry no publish-time vintage to verify against (unlike `load_forecast`). Not independently confirmed against PJM's actual RT settlement/publication timeline.
+Одна строка = один час поставки.
 
-## Roadmap (v2 ideas)
+```
+interval_start_utc   tz-aware, UTC
+da_lmp, rt_lmp       $/MWh
+da_cong, da_loss     компоненты DA LMP
+dart                 da_lmp - rt_lmp     <- ТАРГЕТ, НИКОГДА НЕ ФИЛЬТРУЕТСЯ
+dart_feat            винзоризованная копия, ТОЛЬКО для построения признаков
+y_pos, y_neg         бинарные метки (§5)
+<признаки>           §4
+```
 
-- Weather features from an external source (GridStatus does not currently offer a weather-forecast dataset)
-- Comparing DART dynamics across multiple PJM zones, or across ISOs (ERCOT, MISO) — GridStatus's core value is unified access across all of them
-- Decomposing LMP into energy/congestion/loss components rather than modeling the aggregate spread
+Правила гигиены:
+
+1. Полная почасовая сетка (`reindex` на `date_range(freq="h")`), никаких inner join —
+   пропуски должны быть видны как NaN, а не исчезать. В старом экспорте пропало
+   7593 часа из 66287, и они не случайны: средний `|dart|` в час перед дырой 16.5
+   против 7.3 по выборке, а от Winter Storm Elliott (24–27 декабря 2022, 120 часов)
+   в отфильтрованном экспорте осталось 12 часов из 120 — событие почти стёрто, хотя
+   не пропало буквально целиком (см. `docs/audit.md`).
+2. Винзоризация — только в `dart_feat`, по причинным границам (квантили считаются по
+   прошлому: `shift(1).rolling(...)`). Колонка `dart` не проходит ни одной операции
+   кроме вычитания.
+3. `dropna` — в конце и раздельно: по признакам (warmup лагов) и по таргету.
+4. Календарь в ET, не в UTC. В старом экспорте это было сделано верно, включая
+   переходы на летнее время — не сломать при переписывании.
+
+---
+
+## 4. Признаки
+
+Набор статьи (§2.2) в однозональном виде:
+
+| Признак | Что это |
+|---|---|
+| `dart_lag_24` | DART того же часа предыдущего операционного дня |
+| `dart_lag_48` | DART того же часа два дня назад |
+| `load_fc_dom` | зональный прогноз нагрузки на час поставки, vintage ≤ cutoff |
+| `load_fc_rto` | то же для PJM RTO |
+| `load_fc_err_dom` | (прогноз − факт) для последнего часа, известного до cutoff |
+| `load_fc_err_rto` | то же на уровне системы |
+
+Плюс календарные: `hour_of_day`, `month`, `is_weekend`, `is_holiday`, сезон
+(Winter / Summer / Shoulder), Peak / Off-Peak. Итого `d ≈ 13`.
+
+Чего в наборе нет и чего не добавлять на старте: скользящих средних и std от DART,
+лагов 1/2/3 часа, погоды, one-hot месяца в 12 колонок. Старый набор из 31 колонки был
+богаче по автокорреляционной части и беднее по экзогенной — ровно наоборот к тому,
+что работает.
+
+Логика лагов у авторов: 24ч — тот же час предыдущего операционного дня, наиболее
+релевантный ориентир для участника DA; 48ч — дополнительный якорь, отделяющий
+транзиентные дисбалансы от устойчивых режимов congestion.
+
+---
+
+## 5. Метки
+
+```python
+y_pos = (dart >= gamma_pos).astype(int)   # цель для INC
+y_neg = (dart <= -gamma_neg).astype(int)  # цель для DEC
+```
+
+Пороги калибруются на валидации по максимуму P&L, а не по статистике:
+
+| Рынок (статья) | γ_pos | γ_neg |
+|---|---|---|
+| NYISO | 5 | 30 |
+| ISO–NE | 2 | 8 |
+| ERCOT | 15 | 10 |
+
+Асимметрия неслучайна: левый хвост DART толще из-за RT-спайков, поэтому `γ_neg`
+обычно заметно больше. Sensitivity-анализ (γ_neg ∈ {5,10,15,30,45,60},
+γ_pos ∈ {2,5,8,10,15,25}) даёт плато вокруг (5, 30) с разбросом P&L примерно вдвое:
+выбор важен, но не хрупок.
+
+**Стартовая точка для DOM:** `γ_pos ≈ Q0.95`, `γ_neg ≈ |Q0.02|` на train-периоде,
+дальше сетка вокруг них по валидационному P&L. Считать на нефильтрованных данных.
+
+---
+
+## 6. Сплит
+
+```
+Train:      2019 — 2023
+Validation: 2024              (γ, τ)
+Test:       2025 — 2026-07    (один прогон, не трогать до конца)
+```
+
+Валидация не роскошь: на ней подбираются `γ_pos`, `γ_neg` и вероятностные пороги
+`τ_pos`, `τ_neg`. Без неё обе группы гиперпараметров подгоняются по тесту.
+
+---
+
+## 7. Модель
+
+Две независимые логистические регрессии: одна на `y_pos`, одна на `y_neg`.
+
+```
+p = sigmoid(β @ X_t)
+```
+
+Авторы специально проверили альтернативы — random forest, градиентный бустинг,
+feed-forward сети, SMOTE-ресэмплинг — и все либо не улучшали out-of-sample P&L, либо
+ухудшали (в зоне NYC с SMOTE P&L падает примерно с $6 млн до $3 млн). События редкие,
+гибкие модели переобучаются на шум и дают нестабильные вероятности. Логистика здесь
+результат, а не компромисс.
+
+Практика: стандартизация признаков, `class_weight="balanced"` вместо ресэмплинга,
+L2, ничего сложнее.
+
+---
+
+## 8. Правило торговли (v1, unit size)
+
+```
+если p_pos[t] >= tau_pos:  INC 1 МВт·ч  ->  pnl = +dart[t]
+если p_neg[t] >= tau_neg:  DEC 1 МВт·ч  ->  pnl = -dart[t]
+```
+
+- `τ` подбирается на валидации по максимуму P&L. У статьи 0.70–0.90 — модель торгует
+  **редко**.
+- **Side-clipping:** если сработали обе метки, оставлять только направление,
+  согласованное со знаком предсказанного DART. У авторов клиппированная версия дала
+  P&L выше неограниченной при более гладкой кривой.
+
+Unit size означает допущение о нулевом влиянии на цену — честно только для 1 МВт·ч.
+
+---
+
+## 9. Метрики
+
+1. **Precision по каждой стороне.** У статьи INC ≈ 0.65–0.80, DEC ≈ 0.22–0.34.
+2. **Recall.** У статьи 0.01–0.15, и это не баг: модель ловит малую долю спайков,
+   зато почти не даёт ложных срабатываний. Не пытаться поднять recall — это убьёт
+   precision, а с ним и P&L.
+3. **Кумулятивный P&L** по годам, отдельно INC / DEC.
+4. **Sharpe и max drawdown.** У авторов Sharpe ≈ 0.85 годовых.
+5. **JS-дивергенция** между распределением выбранных моделью часов и распределением
+   реальных крупнейших спайков (по hour-of-day и month-of-year). У статьи
+   `JS(top 20%) = 0.039` против `JS(all) = 0.094` для DEC. Диагностика отвечает на
+   вопрос «модель ловит спайки или просто угадывает пиковые часы».
+
+MAE/RMSE не считать. Они измеряют качество в центре распределения, где денег нет.
+
+**Бейзлайны:** всегда INC, всегда DEC, случайная торговля с той же частотой.
+
+---
+
+## 10. Издержки
+
+Без них положительный P&L на спреде в пару долларов — иллюзия. Минимум: комиссии PJM
+за виртуальные транзакции, uplift на виртуалы, требования по залогу. Ставки уточнить
+в PJM Manual 11 и тарифных schedules, вычитать из каждого трейда, а не из итога.
+
+---
+
+## 11. Price impact (v2)
+
+В одной зоне модель воздействия схлопывается до одного квадратичного члена:
+
+```
+I(q) = (k_E + k_z) · q       =>       q* = x / (2 · (k_E + k_z))
+```
+
+где `x = E[r | p ≥ τ]` — ожидаемая доходность стороны, оценённая на валидации,
+`k_E` — системный коэффициент (локальный наклон агрегированной кривой предложения или
+спроса в точке клиринга, конечные разности при Δq = 1000 МВт·ч, стратифицированно по
+сезону и Peak/Off-Peak), `k_z` — локальный (регрессия loss + congestion на прогноз
+нагрузки). Порядок величины у авторов: `k_LONGIL = 0.050 $/(МВт·ч)²`, системные
+коэффициенты от единиц до ~130 $/1000 МВт·ч в зависимости от сезона и стороны.
+
+Требует исторических бид-стеков PJM — отдельная задача. В v1 достаточно честно
+написать, что стратегия оценена при unit size и потому завышает достижимую прибыль
+при любом реальном объёме.
+
+---
+
+## 12. Честные ограничения
+
+- Другой рынок, чем в статье: PJM вместо NYISO/ISO–NE/ERCOT, другое время гейта,
+  другая топология.
+- Одна зона: мультизональная оптимизация и cross-zone эффекты не воспроизводятся.
+- Нет price impact — unit size, завышенная оценка прибыли.
+- История с 2019, а не с 2015 — меньше наблюдений редких событий.
+- Нет данных бид-стека, поэтому `k_E` не калибруется вовсе.
+- **Порог `τ` выбран строго по максимуму P&L на валидации (Фаза 6), без ограничения
+  на recall.** Оптимум лежит на краю диапазона поиска (`τ_pos = 0.5`) — модель
+  торгует часто (recall 0.71 на INC, 0.47 на DEC на тесте), а не редко и точно, как
+  у авторов (recall 0.01–0.15). Это осознанный выбор («буквально по плану», не моя
+  подмена), но именно из-за него precision заметно ниже, чем в статье — см. §13.
+- Издержки (§10) — нижняя граница: реальные тарифы PJM Schedule 9-3 за 2024 год,
+  но без real-time uplift на виртуалы (не публикуется единой ставкой) и без
+  залоговых требований (это про капитал, не про P&L).
+- Результат оказался положительным на этом тестовом периоде — это не гарантия
+  устойчивости: 2026 (частичный год) даёт отрицательный P&L по INC-стороне, и общая
+  прибыль сильно завязана на несколько эпизодов (см. график в §13), а не размазана
+  ровно по времени.
+
+---
+
+## 13. Результаты (Фаза 7, единственный прогон на тесте)
+
+Обучено один раз на train (2019–2023), пороги — из Фазы 6:
+`γ_pos=12, γ_neg=100, τ_pos=0.5, τ_neg=0.75`. Применено к test (2025 — 2026-07,
+13 848 часов) ровно один раз; назад в Фазу 6 не возвращались.
+
+### Precision / recall
+
+| | precision | recall | base rate | n trades |
+|---|---|---|---|---|
+| INC (`y_pos`) | 0.322 | 0.710 | 0.286 | 8 743 |
+| DEC (`y_neg`) | 0.099 | 0.466 | 0.049 | 3 200 |
+
+Ниже, чем у статьи (INC 0.65–0.80, DEC 0.22–0.34) — прямое следствие того, что
+`τ` выбирался по argmax P&L без ограничения на recall (§12). Не пересчитывалось
+задним числом.
+
+### P&L (за вычетом издержек, $0.0644/МВт·ч за трейд)
+
+```
+total P&L:     $82,926
+Sharpe (год.): 2.78        (у статьи ≈ 0.85 — заметно выше, не переоценивать:
+                             результат одного тестового окна, не ансамбль лет)
+max drawdown:  $20,525
+n_trades:      11 943  (8 743 INC + 3 200 DEC)
+```
+
+| год | INC P&L | DEC P&L | n INC | n DEC |
+|---|---|---|---|---|
+| 2025 | 23 410 | 25 882 | 5 497 | 1 792 |
+| 2026 (частичный, по июль) | −1 098 | 34 732 | 3 246 | 1 408 |
+
+![Кумулятивный P&L на тесте](results/test_cumulative_pnl.png)
+
+Прибыль концентрируется в отдельных эпизодах (резкий рост в мае–июне 2026), а не
+размазана равномерно — та же качественная картина, о которой предупреждает §0 для
+рынков статьи.
+
+### Бейзлайны (тот же период, за вычетом издержек)
+
+| | total P&L | Sharpe |
+|---|---|---|
+| **модель** | **82 926** | **2.78** |
+| всегда INC | −42 704 | −1.05 |
+| всегда DEC | 40 920 | 1.01 |
+| случайно, та же частота (2000 симуляций) | −17 927 ± 9 284 | — |
+
+Модель бьёт все три бейзлайна; random — на 10.9σ.
+
+### JS-дивергенция (ниже = ближе к реальному таймингу спайков)
+
+| | all | top 20% | |
+|---|---|---|---|
+| DEC по часу | 0.181 | 0.173 | лучше |
+| DEC по месяцу | 0.242 | 0.168 | лучше |
+| INC по часу | 0.142 | 0.104 | лучше |
+| INC по месяцу | 0.118 | 0.286 | **хуже** |
+
+3 среза из 4 подтверждают, что уверенность модели коррелирует с реальным
+таймингом спайков, а не просто с пиковыми часами. Единственное исключение — INC по
+месяцу: самые уверенные прогнозы модели по месяцам хуже соответствуют реальному
+сезону INC-спайков, чем полный набор трейдов. Не скрываю — это смешанный, а не
+однозначно положительный результат.
+
+### Итог
+
+Стратегия побила все три бейзлайна на единственном прогоне теста. Это не отменяет
+ограничений §12: `τ` выбран по чистому P&L без учёта recall, издержки — нижняя
+оценка, результат — одно тестовое окно, а не подтверждённая на нескольких периодах
+устойчивость.
