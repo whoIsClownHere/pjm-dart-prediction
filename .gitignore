@@ -9,3 +9,4 @@ __pycache__/
 SPEC.md
 input_data/
 results/.DS_Store
+.docs/
