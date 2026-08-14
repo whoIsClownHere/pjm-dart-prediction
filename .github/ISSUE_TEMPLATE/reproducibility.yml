@@ -1,0 +1,62 @@
+name: Research / reproducibility issue
+description: Report a concern about timing, data provenance, methodology, or published results
+title: "[Reproducibility]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for scientific and backtest-validity concerns. Security vulnerabilities should follow SECURITY.md.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Point-in-time feature availability
+        - Data provenance or revisions
+        - Missing data or timezone handling
+        - Labels or chronological split
+        - Model or threshold selection
+        - P&L, costs, or market assumptions
+        - Baseline comparison
+        - README metric or figure
+        - Notebook reproducibility
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: Claim or result affected
+      description: Identify the exact assumption, metric, figure, file, or code path.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Include timestamps, date ranges, source links, calculations, or a minimal example.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected invariant or behavior
+      description: Explain what a correct point-in-time or reproducible implementation should guarantee.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_check
+    attributes:
+      label: Proposed verification
+      description: Suggest a test, audit, sensitivity analysis, or reproduction command if possible.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I identified the relevant data and evaluation period.
+          required: true
+        - label: I did not include credentials or private/raw licensed data.
+          required: true
+        - label: I distinguished observed evidence from interpretation.
+          required: true

@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible problem in the code or data pipeline
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include API keys, private data, or other secrets.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Data collection
+        - Feature engineering
+        - Labels or chronological split
+        - Model training
+        - Evaluation or baselines
+        - Tests
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest command or code sample that reproduces the problem.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Python version, dependency versions, and relevant data date range.
+      placeholder: |
+        OS:
+        Python:
+        Commit:
+        Data range:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Paste a short traceback or log excerpt with credentials and private paths removed.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I removed API keys, credentials, and private data from this report.
+          required: true
