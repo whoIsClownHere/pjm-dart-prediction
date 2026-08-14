@@ -8,7 +8,7 @@
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
 
-[Method audit](docs/audit.md) · [Research paper](https://arxiv.org/abs/2601.05085)
+[Research paper](https://arxiv.org/abs/2601.05085)
 
 </div>
 
