@@ -1,0 +1,107 @@
+{
+  "written_at_utc": "2026-10-27T23:17:59+00:00",
+  "gridstatusio_version": "0.16.1",
+  "zone": "DOM",
+  "range": [
+    "2019-01-01",
+    "2026-08-01"
+  ],
+  "files": {
+    "da_lmp/2019.csv": {
+      "sha256": "8fb17fe5dcee0e1a559aa86cbf9667bfe3ed1c36ab24f917af85dbb7f29e2a31"
+    },
+    "da_lmp/2020.csv": {
+      "sha256": "2779264810d6b6fc0ab977d10b05b3733660b50cca49abf7308c0e7ba3844b0b"
+    },
+    "da_lmp/2021.csv": {
+      "sha256": "845fec13741cf8a13825dae7dd0be821b4fd698ec7a3137c9beaaec33a9316e7"
+    },
+    "da_lmp/2022.csv": {
+      "sha256": "b0c3220ab92d677443e8a0f238d034b40ce223ae5a6f895a8b4e01963d493e76"
+    },
+    "da_lmp/2023.csv": {
+      "sha256": "542fe33eda53847354cc251c9cb44232d82b7f2810dbd2bda9ec26c087d36831"
+    },
+    "da_lmp/2024.csv": {
+      "sha256": "f551bd8a89c3ada36e8eb266d381e64b9692aad89c7413ab6ca35f3558a67902"
+    },
+    "da_lmp/2025.csv": {
+      "sha256": "d2b2f75a700eebccac0e7146366cccd270f96fe560aff1d1d91ff1ba7a7e5125"
+    },
+    "da_lmp/2026.csv": {
+      "sha256": "3c1311c66c888d6e885c542a810b726c1877ff658a2b7d397d5eae13890769ad"
+    },
+    "load_actual/2019.csv": {
+      "sha256": "faf4887b7f7d410ecd765de1b9cb27d9d47951d20a28044cba4b8d295537c989"
+    },
+    "load_actual/2020.csv": {
+      "sha256": "f5859b9140bc25c3980884cc685d8a12029f0fd8f2bc2748835ad48b412c878f"
+    },
+    "load_actual/2021.csv": {
+      "sha256": "db8fc2dacfe779687a500924ba8c6352499cd3d53f2cb1d3adf1d2bd0ea57f62"
+    },
+    "load_actual/2022.csv": {
+      "sha256": "e1809f8aebdc1aaef135a3ad8c5edd454fcec3113c65b1bdc9dc8bf8c652e35f"
+    },
+    "load_actual/2023.csv": {
+      "sha256": "7036ded10e9a4384010d3b0e13c6546a706d4c8dadd7789f7fde2bcd5dbe528a"
+    },
+    "load_actual/2024.csv": {
+      "sha256": "61889b8e4129d650c49d12677ac5c42e615a0dd7dc891e1394f8cd8fa5e62f6d"
+    },
+    "load_actual/2025.csv": {
+      "sha256": "26ac330cfca1d5d8f31d237305853f12b88b55877a4106b8a5c0fd7e757865e3"
+    },
+    "load_actual/2026.csv": {
+      "sha256": "34d22ebdb90c3021f1d7f89cab2fb643a95c8b91b313d31c7a35857eb7b7e79b"
+    },
+    "load_forecast/2019.csv": {
+      "sha256": "991ebe46282585c5624d10e4f2e2bbd5c5a203ed8bc0fe446a1e0301970b2d37"
+    },
+    "load_forecast/2020.csv": {
+      "sha256": "40bd79e0e418edfe97d6c6ef2bda64ce41d07965d0c0c62cfcfa845162ff432c"
+    },
+    "load_forecast/2021.csv": {
+      "sha256": "9c41477b40779f42de9534d606fd64c47e034af16f551212f72bfe0e7bd3b5da"
+    },
+    "load_forecast/2022.csv": {
+      "sha256": "0001b737be25614ec58b4c698f7e2de232ba778d5b6959646f01e24fd084a5dd"
+    },
+    "load_forecast/2023.csv": {
+      "sha256": "0de86d8101a619eae102af5d42420050b1b272c479371bb53063352cd978cf8b"
+    },
+    "load_forecast/2024.csv": {
+      "sha256": "cb7a392e88340e7b11a15143d279b7eab18baf7584e590959de0c05faf9bb21c"
+    },
+    "load_forecast/2025.csv": {
+      "sha256": "e5ba9b0afa08228f7db7e8cc7a3cdf7742063c30bc3689ff6a37e86600c6047c"
+    },
+    "load_forecast/2026.csv": {
+      "sha256": "033c059b236d35adbad5a3e4fc5e23e0bdd7d2b83917aabe547cfba9efc9919f"
+    },
+    "rt_lmp/2019.csv": {
+      "sha256": "84a13eabb8f153b183d58055ea4988c85f584c2c17385206fe2b5a99f358d640"
+    },
+    "rt_lmp/2020.csv": {
+      "sha256": "b8ad30863b962b24dd58fcc2f97d8bc9f11dd665082a2f369a77150232bd4bc6"
+    },
+    "rt_lmp/2021.csv": {
+      "sha256": "2eec507f49b113105748b2020b6a7552feceb7008b779b072d04d67a81ad36e6"
+    },
+    "rt_lmp/2022.csv": {
+      "sha256": "7d8daf559e29c74c3bca88521ff938b59433c87103ba2184d4d389c1ff9c98e7"
+    },
+    "rt_lmp/2023.csv": {
+      "sha256": "53dd271cda986f6b1faed0bb70d5817b616a3eadd1e540a3563845e6b1b66e59"
+    },
+    "rt_lmp/2024.csv": {
+      "sha256": "f27840121d92026feeda1a1402f4ec64879c8d4346692450ef38dd0a17e2f142"
+    },
+    "rt_lmp/2025.csv": {
+      "sha256": "790edd9b33c3569c321e3a0fafa7318e7222b12266e3840211b86f2b2d6c8162"
+    },
+    "rt_lmp/2026.csv": {
+      "sha256": "449bee9cb567391a533da2d6e5413417fc989201693ff9f86d4974645343cda2"
+    }
+  }
+}

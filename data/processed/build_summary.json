@@ -1,0 +1,36 @@
+{
+  "panel": {
+    "hours_on_grid": 66455,
+    "first_hour_utc": "2019-01-01 05:00:00+00:00",
+    "last_hour_utc": "2026-08-01 03:00:00+00:00",
+    "missing_hours": {
+      "da_lmp": 0,
+      "rt_lmp": 0,
+      "dart": 0,
+      "load_actual_dom": 0,
+      "load_actual_rto": 0
+    }
+  },
+  "load_forecast_vintages": 495801,
+  "model_rows": {
+    "train": {
+      "hours": 43824,
+      "missing_feature": 313,
+      "missing_dart": 0,
+      "kept": 43511
+    },
+    "validation": {
+      "hours": 8784,
+      "missing_feature": 72,
+      "missing_dart": 0,
+      "kept": 8712
+    },
+    "test": {
+      "hours": 13847,
+      "missing_feature": 0,
+      "missing_dart": 0,
+      "kept": 13847
+    }
+  },
+  "features_sha256": "aecf3709abb36ad07b6a403e9079af92a4baaac133d5d522c41105d8bbc2deca"
+}
